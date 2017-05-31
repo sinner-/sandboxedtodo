@@ -1,9 +1,17 @@
 #include <stdio.h>
+#include <sys/prctl.h>
 #include <seccomp.h>
 #include <my_global.h>
 #include <mysql.h>
 
 int main() {
+
+    // ensure none of our children will ever be granted more priv
+    // (via setuid, capabilities, ...)
+    prctl(PR_SET_NO_NEW_PRIVS, 1);
+    // ensure no escape is possible via ptrace
+    prctl(PR_SET_DUMPABLE, 0);
+
     scmp_filter_ctx ctx;
     ctx = seccomp_init(SCMP_ACT_KILL);
 
