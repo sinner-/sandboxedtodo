@@ -1,8 +1,12 @@
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/prctl.h>
 #include <seccomp.h>
 #include <my_global.h>
 #include <mysql.h>
+
+#define MAX_POST_LEN 1024
 
 int main() {
 
@@ -26,11 +30,15 @@ int main() {
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(close), 0);
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(shutdown), 0);
 
-    //Need to do an insecure printf first
-    //TODO: Hunt down and explain reason
+    //For sscanf
+    seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fstat), 0);
+
+    /* Do all the insecure stuff
+     * insecure printf (why?)
+     * mysql connection setup
+     */
     printf("Content-type: text/html\r\n\r\n");
 
-    /* Do MySQL connection setup outside of sandbox */
     MYSQL *con = mysql_init(NULL);
     
     if (con == NULL) {
@@ -43,7 +51,7 @@ int main() {
         mysql_close(con);
         exit(1);
     }
-    /* Finish connection setup */
+    /* end all the insecure stuff */
 
     //Start sandbox
     seccomp_load(ctx);
@@ -60,9 +68,56 @@ int main() {
     printf("\t</head>\n");
     printf("\t<body>\n");
     printf("\t\t<p>Hello World</p>\n");
+    printf("\t\t\t<form method='POST' action='/index'>\n");
+    printf("\t\t\t\tvalue1: <input type='text' name='val1'/><br/>\n");
+    printf("\t\t\t\tvalue2: <input type='text' name='val2'/><br/>\n");
+    printf("\t\t\t\t<input type='submit'/></br>\n");
+    printf("\t\t\t</form>\n");
+
+    //GET
+    char *query_string;
+    char *param_token, *key, *value;
+    query_string = getenv("QUERY_STRING");
+    
+    if (query_string != NULL) {
+        printf("\t\t<p>Query string tokenized:</p>\n");
+        while((param_token = strsep(&query_string, "&")) != NULL) {
+            printf("\t\t\t<p>");
+            key = strsep(&param_token, "=");
+            value = strsep(&param_token, "=");
+            if(value != NULL) {
+                printf("%s=%s", key, value);
+            }
+            printf("</p>\n");
+        }
+    }
+
+    //POST
+    char *content_length;
+    long len;
+    char post_data[MAX_POST_LEN];
+    char *p = post_data;
+    content_length = getenv("CONTENT_LENGTH");
+
+    if (content_length == NULL || sscanf(content_length,"%ld",&len)!=1 || len > MAX_POST_LEN) {
+        printf("\t\t<p>POST error</p>\n"); 
+    } else {
+        fgets(post_data, len+1, stdin);
+        printf("\t\t<p>POST data tokenized:</p>\n");
+        while((param_token = strsep(&p, "&")) != NULL) {
+            printf("\t\t\t<p>");
+            key = strsep(&param_token, "=");
+            value = strsep(&param_token, "=");
+            if(value != NULL) {
+                printf("%s=%s", key, value);
+            }
+            printf("</p>\n");
+       }
+    }
+
     printf("\t</body>\n");
     printf("<html>\n");
 
     mysql_close(con);
-    return(0);
+    exit(0);
 }
