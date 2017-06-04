@@ -55,6 +55,7 @@ int main() {
 
     //Start sandbox
     seccomp_load(ctx);
+    seccomp_release(ctx);
 
     if (mysql_query(con, "CREATE DATABASE IF NOT EXISTS todo")) {
         fprintf(stderr, "%s\n", mysql_error(con));
