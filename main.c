@@ -34,7 +34,9 @@ int main() {
     seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(fstat), 0);
 
     /* Do all the insecure stuff
-     * insecure printf (why?)
+     * insecure printf because first call to print to an output stream 
+     * causes glibc to invoke fstat, which is not permitted 
+     * when in SECCOMP mode.
      * mysql connection setup
      */
     printf("Content-type: text/html\r\n\r\n");
